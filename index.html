@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>game</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: monospace;
+      background: black;
+      color: #0f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    #map {
+      display: grid;
+      grid-template-columns: repeat(20, 24px);
+      grid-template-rows: repeat(20, 24px);
+      gap: 1px;
+      background: #111;
+    }
+    .tile {
+      width: 24px;
+      height: 24px;
+      background-color: #222;
+      border: 1px solid #0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8px;
+    }
+    .path { background-color: #003300; }
+    .component {
+      background-color: #1b261b;
+      font-size: 7px;
+      color: #0f0;
+      font-weight: bold;
+    }
+    .glitch {
+      background-color: #ff00ff;
+      animation: glitchAnim 0.2s infinite alternate;
+    }
+    #player {
+      width: 100%;
+      height: 100%;
+      background-color: lime;
+    }
+    #terminal {
+      margin-top: 15px;
+      width: 500px;
+      background: #111;
+      border: 1px solid #0f0;
+      padding: 10px;
+    }
+    #terminal-log {
+      height: 100px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      font-size: 13px;
+    }
+    #commandInput {
+      width: 100%;
+      background: black;
+      color: #0f0;
+      border: none;
+      font-size: 14px;
+      padding: 6px;
+      outline: none;
+    }
+    .error {
+      color: #ff00ff;
+      animation: glitchAnim 0.3s infinite;
+    }
+    @keyframes glitchAnim {
+      0% { text-shadow: 2px 0 red; }
+      50% { text-shadow: -2px 0 cyan; }
+      100% { text-shadow: 2px 0 red; }
+    }
+    .fade {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: black;
+      opacity: 0;
+      transition: opacity 0.8s;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .fade.show {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    #startScreen {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: black;
+      color: lime;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+    }
+
+    #startScreen button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 18px;
+      background-color: #0f0;
+      color: black;
+      border: none;
+      cursor: pointer;
+    }
+
+    h1 {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="startScreen">
+    <h1>Bug Fixer</h1>
+    <p>tugas informatika</p>
+    <button onclick="startGame()">mulai</button>
+    <button onclick="window.open('https://huhu189.github.io/katakuncitpp/', '_blank')">Cara Main</button>
+  </div>
+
+  <h1 style="display:none;"></h1>
+  <div id="map"></div>
+
+  <div id="terminal">
+    <div id="terminal-log">pake  panah untuk bergerak (gak support WASD) </div>
+    <input type="text" id="commandInput" placeholder="> tulis perintah di sini (pencet Enter)" disabled />
+  </div>
+
+  <div class="fade" id="deathScreen">
+    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:red; text-align:center;">
+      <p>Kesalahan berpikir</p>
+      <button onclick="restartGame()" style="padding:10px; font-size:16px;">main lagi</button>
+    </div>
+  </div>
+
+  <div class="fade" id="winScreen">
+    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:lime; text-align:center;">
+      <p>berhasil!</p>
+      <button onclick="restartGame()" style="padding:10px; font-size:16px;">main lagi</button>
+    
+      <button onclick="window.open('https://huhu189.github.io/creditscreen.html/')">credit</button>
+    </div>
+  </div>
+
+  <script>
+    const width = 20, height = 20;
+    const map = document.getElementById("map");
+    const terminalLog = document.getElementById("terminal-log");
+    const commandInput = document.getElementById("commandInput");
+    const deathScreen = document.getElementById("deathScreen");
+    const winScreen = document.getElementById("winScreen");
+    const titleHeader = document.querySelector("h1");
+
+    let playerX = 1, playerY = 1;
+    let activeComponent = null;
+    let glitchTiles = new Set();
+    let pathTiles = new Set();
+    let repairedSystems = new Set();
+    let components = {};
+    let glitchQueue = [];
+    let glitchInterval;
+    const baseGlitchRate = 3500;
+    let currentGlitchRate = baseGlitchRate;
+    let wonLastGame = false;
+
+    const componentNames = ["CPU", "RAM", "GPU", "HDD", "MB"];
+    const possibleStates = {
+      CPU: [{ state: "freeze", command: "restart" },
+            { state: "overheat", command: "close task" },
+            { state: "bottleneck", command: "optimal" }],
+      RAM: [{ state: "full", command: "delete" },  
+            { state: "overload", command: "close task" }, 
+            { state: "Corrupt", command: "restart" }],
+      GPU: [{ state: "driver corrupt", command: "update" }, 
+            { state: "freeze", command: "restart" }, 
+            { state: "Lag", command: "optimal" }],
+      HDD: [{ state: "corrupt", command: "clone" }, 
+            { state: "HDD not detected", command: "restart" }, 
+            { state: "missing", command: "file recover" }],
+      MB: [{ state: "BIOS not detected", command: "reflash" }, 
+            { state: "bootloop", command: "reset" },
+            { state: "Freeze", command: "restart" }]
+    };
+
+    const audioSources = {
+      command: "https://files.catbox.moe/04asnk.mp3",
+      success: "sfx/success.mp3",
+      error: "https://files.catbox.moe/2ppei7.mp3",
+      glitch: "",
+      win: "https://files.catbox.moe/z4na94.mp3",
+      death: "https://www.myinstants.com/media/sounds/undertale-death.mp3",
+      bgm: "https://files.catbox.moe/6bs3g8.mp3",
+      walk: "https://files.catbox.moe/us3huw.mp4"
+    };
+
+    const credit = () => {
+      
+    };
+    const sfx = {};
+    for (const [key, src] of Object.entries(audioSources)) {
+      const audio = new Audio(src);
+      if (key === "bgm") audio.loop = true;
+      audio.volume = {
+        bgm: 0.3,
+        walk: 1.0,
+        command: 0.3,
+        success: 0.4,
+        error: 0.5,
+        win: 1.0,
+        death: 0.5,
+        glitch: 0.4
+      }[key] || 0.4;
+      sfx[key] = audio;
+    }
+
+    function playSFX(name) {
+      if (sfx[name]) {
+        sfx[name].currentTime = 0;
+        sfx[name].play();
+      }
+    }
+
+    function logMessage(msg, isError = false) {
+      const line = document.createElement("div");
+      line.textContent = "> " + msg;
+      if (isError) line.classList.add("error");
+      terminalLog.appendChild(line);
+      terminalLog.scrollTop = terminalLog.scrollHeight;
+    }
+
+    function generatePath() {
+      pathTiles.clear();
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          pathTiles.add(`${x}-${y}`);
+        }
+      }
+    }
+
+    function placeRandomComponents() {
+      components = {};
+      const taken = new Set([`${playerX}-${playerY}`]);
+      for (const name of componentNames) {
+        let key;
+        do {
+          const x = Math.floor(Math.random() * width);
+          const y = Math.floor(Math.random() * height);
+          key = `${x}-${y}`;
+        } while (taken.has(key));
+        taken.add(key);
+        const options = possibleStates[name];
+        const randomState = options[Math.floor(Math.random() * options.length)];
+        components[key] = { name, state: randomState.state, command: randomState.command };
+      }
+    }
+
+    function renderMap() {
+      map.innerHTML = "";
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const key = `${x}-${y}`;
+          const tile = document.createElement("div");
+          tile.classList.add("tile");
+          if (pathTiles.has(key)) tile.classList.add("path");
+          if (glitchTiles.has(key)) tile.classList.add("glitch");
+          if (components[key]) {
+            tile.classList.add("component");
+            tile.textContent = components[key].name;
+          }
+          if (x === playerX && y === playerY) {
+            const player = document.createElement("div");
+            player.id = "player";
+            tile.appendChild(player);
+          }
+          map.appendChild(tile);
+        }
+      }
+    }
+
+    function move(dx, dy) {
+      const nx = playerX + dx;
+      const ny = playerY + dy;
+      const key = `${nx}-${ny}`;
+      if (nx >= 0 && nx < width && ny >= 0 && ny < height && pathTiles.has(key)) {
+        playerX = nx;
+        playerY = ny;
+        playSFX("walk"); 
+        activeComponent = null;
+        commandInput.disabled = true;
+        commandInput.value = '';
+        if (glitchTiles.has(key)) return triggerDeath();
+        renderMap();
+      }
+    }
+
+    function interact() {
+      playSFX("command");
+      const key = `${playerX}-${playerY}`;
+      const part = components[key];
+      if (part) {
+        activeComponent = part;
+        commandInput.disabled = false;
+        commandInput.focus();
+        logMessage(`Accessing ${part.name} [${part.state}]`);
+      } else {
+        logMessage("null.");
+      }
+    }
+
+    function triggerDeath() {
+      playSFX("death");
+      sfx.bgm.pause();
+      deathScreen.classList.add("show");
+      clearInterval(glitchInterval);
+      wonLastGame = false;
+    }
+
+    function spawnInitialGlitch() {
+      glitchQueue = [];
+      const edges = [];
+      for (let i = 0; i < width; i++) edges.push(`${i}-0`, `${i}-${height-1}`);
+      for (let j = 1; j < height - 1; j++) edges.push(`0-${j}`, `${width - 1}-${j}`);
+      const start = edges[Math.floor(Math.random() * edges.length)];
+      glitchTiles.add(start);
+      glitchQueue.push(start);
+    }
+
+    function spreadGlitchStep() {
+      playSFX("glitch");
+      const next = [];
+      for (const pos of glitchQueue) {
+        const [x, y] = pos.split("-").map(Number);
+        const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+        for (const [dx, dy] of dirs) {
+          const nx = x + dx, ny = y + dy;
+          const key = `${nx}-${ny}`;
+          if (nx >= 0 && ny >= 0 && nx < width && ny < height && !glitchTiles.has(key)) {
+            glitchTiles.add(key);
+            next.push(key);
+          }
+        }
+      }
+      glitchQueue = next;
+      renderMap();
+    }
+
+    function spawnRandomGlitch() {
+      let key;
+      do {
+        const x = Math.floor(Math.random() * width);
+        const y = Math.floor(Math.random() * height);
+        key = `${x}-${y}`;
+      } while (glitchTiles.has(key));
+      glitchTiles.add(key);
+    }
+
+    function restartGame() {
+      deathScreen.classList.remove("show");
+      winScreen.classList.remove("show");
+      startGame();
+    }
+
+    function startGame() {
+      document.getElementById("startScreen").style.display = "none";
+      titleHeader.style.display = "block";
+      glitchTiles.clear();
+      repairedSystems.clear();
+      playerX = 1;
+      playerY = 1;
+      generatePath();
+      placeRandomComponents();
+      renderMap();
+      spawnInitialGlitch();
+      currentGlitchRate = wonLastGame ? baseGlitchRate / 1.5 : baseGlitchRate;
+      clearInterval(glitchInterval);
+      glitchInterval = setInterval(spreadGlitchStep, currentGlitchRate);
+      sfx.bgm.currentTime = 0;
+      sfx.bgm.play();
+    }
+
+    commandInput.addEventListener("keydown", e => {
+      if (e.key === "Enter" && activeComponent) {
+        const cmd = commandInput.value.trim().toLowerCase();
+        commandInput.value = '';
+        playSFX("command");
+        if (cmd === activeComponent.command) {
+          logMessage(`${activeComponent.name} fixed!`);
+          repairedSystems.add(`${playerX}-${playerY}`);
+          activeComponent = null;
+          commandInput.disabled = true;
+          playSFX("success");
+          if (repairedSystems.size === Object.keys(components).length) {
+            clearInterval(glitchInterval);
+            wonLastGame = true;
+            playSFX("win");
+            sfx.bgm.pause();
+            setTimeout(() => winScreen.classList.add("show"), 800);
+          }
+        } else {
+          logMessage("null (boolean=false)", true);
+          playSFX("error");
+          spreadGlitchStep();
+          spawnRandomGlitch();
+        }
+      }
+    });
+
+    document.addEventListener("keydown", e => {
+      if (document.activeElement !== commandInput) {
+        if (e.key === "ArrowUp") move(0, -1);
+        if (e.key === "ArrowDown") move(0, 1);
+        if (e.key === "ArrowLeft") move(-1, 0);
+        if (e.key === "ArrowRight") move(1, 0);
+        if (e.key === " ") interact();
+      }
+    });
+  </script>
+</body>
+</html>
