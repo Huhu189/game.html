@@ -121,6 +121,20 @@
   </style>
 </head>
 <body>
+  <div id="joystick">
+  <div class="row">
+    <button onclick="move(0,-1)">▲</button>
+  </div>
+  <div class="row">
+    <button onclick="move(-1,0)">◀</button>
+    <button onclick="interact()">⏎</button>
+    <button onclick="move(1,0)">▶</button>
+  </div>
+  <div class="row">
+    <button onclick="move(0,1)">▼</button>
+  </div>
+</div>
+
   <div id="startScreen">
     <h1>Bug Fixer</h1>
     <p>tugas informatika</p>
