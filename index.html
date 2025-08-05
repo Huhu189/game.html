@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>game</title>
   <style>
     body {
@@ -49,6 +50,7 @@
     #terminal {
       margin-top: 15px;
       width: 500px;
+      max-width: 95%;
       background: #111;
       border: 1px solid #0f0;
       padding: 10px;
@@ -118,23 +120,81 @@
     h1 {
       margin-top: 20px;
     }
+
+    /* Mobile controls */
+    #mobile-controls {
+      display: none;
+      position: fixed;
+      bottom: 20px;
+      width: 100%;
+      justify-content: center;
+      z-index: 5;
+    }
+    
+    .mobile-btn {
+      width: 60px;
+      height: 60px;
+      background: rgba(0, 255, 0, 0.3);
+      border: 2px solid #0f0;
+      border-radius: 50%;
+      margin: 0 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #0f0;
+      font-size: 24px;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    #mobile-interact {
+      position: fixed;
+      bottom: 100px;
+      right: 20px;
+      width: 70px;
+      height: 70px;
+      background: rgba(0, 255, 0, 0.3);
+      border: 2px solid #0f0;
+      border-radius: 50%;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      color: #0f0;
+      font-size: 14px;
+      text-align: center;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      z-index: 5;
+    }
+
+    /* Mobile-specific styles */
+    @media only screen and (max-width: 768px) {
+      #map {
+        grid-template-columns: repeat(20, 12px);
+        grid-template-rows: repeat(20, 12px);
+      }
+      .tile {
+        width: 12px;
+        height: 12px;
+        font-size: 4px;
+      }
+      #terminal {
+        width: 90%;
+        font-size: 12px;
+      }
+      #terminal-log {
+        height: 80px;
+      }
+      #mobile-controls {
+        display: flex;
+      }
+      #mobile-interact {
+        display: flex;
+      }
+    }
   </style>
 </head>
 <body>
-  <div id="joystick">
-  <div class="row">
-    <button onclick="move(0,-1)">▲</button>
-  </div>
-  <div class="row">
-    <button onclick="move(-1,0)">◀</button>
-    <button onclick="interact()">⏎</button>
-    <button onclick="move(1,0)">▶</button>
-  </div>
-  <div class="row">
-    <button onclick="move(0,1)">▼</button>
-  </div>
-</div>
-
   <div id="startScreen">
     <h1>Bug Fixer</h1>
     <p>tugas informatika</p>
@@ -146,9 +206,18 @@
   <div id="map"></div>
 
   <div id="terminal">
-    <div id="terminal-log">pake  panah untuk bergerak (gak support WASD) </div>
+    <div id="terminal-log">pake panah untuk bergerak (gak support WASD)</div>
     <input type="text" id="commandInput" placeholder="> tulis perintah di sini (pencet Enter)" disabled />
   </div>
+
+  <!-- Mobile Controls -->
+  <div id="mobile-controls">
+    <div class="mobile-btn" id="mobile-up">↑</div>
+    <div class="mobile-btn" id="mobile-left">←</div>
+    <div class="mobile-btn" id="mobile-down">↓</div>
+    <div class="mobile-btn" id="mobile-right">→</div>
+  </div>
+  <div id="mobile-interact">INTERACT</div>
 
   <div class="fade" id="deathScreen">
     <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:red; text-align:center;">
@@ -161,7 +230,6 @@
     <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:lime; text-align:center;">
       <p>berhasil!</p>
       <button onclick="restartGame()" style="padding:10px; font-size:16px;">main lagi</button>
-    
       <button onclick="window.open('https://huhu189.github.io/creditscreen.html/')">credit</button>
     </div>
   </div>
@@ -174,6 +242,13 @@
     const deathScreen = document.getElementById("deathScreen");
     const winScreen = document.getElementById("winScreen");
     const titleHeader = document.querySelector("h1");
+
+    // Mobile control elements
+    const mobileUp = document.getElementById("mobile-up");
+    const mobileDown = document.getElementById("mobile-down");
+    const mobileLeft = document.getElementById("mobile-left");
+    const mobileRight = document.getElementById("mobile-right");
+    const mobileInteract = document.getElementById("mobile-interact");
 
     let playerX = 1, playerY = 1;
     let activeComponent = null;
@@ -402,6 +477,13 @@
       sfx.bgm.play();
     }
 
+    // Mobile control event listeners
+    mobileUp.addEventListener("touchstart", () => move(0, -1));
+    mobileDown.addEventListener("touchstart", () => move(0, 1));
+    mobileLeft.addEventListener("touchstart", () => move(-1, 0));
+    mobileRight.addEventListener("touchstart", () => move(1, 0));
+    mobileInteract.addEventListener("touchstart", interact);
+
     commandInput.addEventListener("keydown", e => {
       if (e.key === "Enter" && activeComponent) {
         const cmd = commandInput.value.trim().toLowerCase();
@@ -438,6 +520,18 @@
         if (e.key === " ") interact();
       }
     });
+
+    // Check if mobile device
+    function isMobileDevice() {
+      return (typeof window.orientation !== "undefined") || (navigator.userAgent.indexOf('IEMobile') !== -1);
+    }
+
+    // Initialize mobile controls if needed
+    if (isMobileDevice()) {
+      document.getElementById("mobile-controls").style.display = "flex";
+      document.getElementById("mobile-interact").style.display = "flex";
+      logMessage("Gunakan tombol di layar untuk bermain");
+    }
   </script>
 </body>
 </html>
